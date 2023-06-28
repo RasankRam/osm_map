@@ -9,16 +9,19 @@
   </div>
   <HelloWorld msg="Vite + Vue" />
 
-  <div style="height: 500px" id="mapid"></div>
+  <div style="height: 500px;width:500px;" id="mapid"></div>
 
 </template>
 
 <script setup>
 import HelloWorld from './components/HelloWorld.vue'
 import { onMounted, onUnmounted } from 'vue';
-import { map, tileLayer, polygon, polyline, marker, divIcon, TileLayer, latLng, point, LineUtil, latLngBounds } from 'leaflet';
+import * as L from 'leaflet';
 import "leaflet-arrowheads";
 import roads from './roads.json';
+import pickets from './pickets.json';
+
+console.log('picket', pickets[0].geometry.coordinates);
 
 
 function sleep (ms) {
@@ -39,136 +42,8 @@ function getRandomColor() {
   return color;
 }
 
-function distanceBetweenPoints(x1, y1, x2, y2) {
-  const dx = x2 - x1;
-  const dy = y2 - y1;
-
-  return Math.sqrt(dx*dx + dy*dy);
-}
-
-function generateUniqueId(length) {
-  const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  let result = '';
-
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-
-  return result;
-}
-
-function getRandomLightColor() {
-  // Генерируем случайные значения для красного, зеленого и синего цветов (в диапазоне от 200 до 255)
-  const red = Math.floor(Math.random() * (256 - 200) + 200);
-  const green = Math.floor(Math.random() * (256 - 200) + 200);
-  const blue = Math.floor(Math.random() * (256 - 200) + 200);
-
-  // Соединяем значения в одну строку для создания CSS-цвета RGB
-  return `rgb(${red}, ${green}, ${blue})`;
-}
-
-function reduceDistance(x1, y1, x2, y2) {
-  const xm = (x1 + x2) / 2;
-  const ym = (y1 + y2) / 2;
-
-  return [xm, ym];
-}
-
-function distanceToPolylineCenter(polyline, center) {
-
-  var minDistance = Infinity; // начальное значение минимального расстояния - бесконечность
-
-  for (var i = 0; i < polyline.length - 1; i++) { // перебираем все отрезки в линии
-    var p1 = latLng(polyline[i]); // первая точка текущего отрезка
-    var p2 = latLng(polyline[i + 1]); // вторая точка текущего отрезка
-
-    var distance = center.distanceTo(LineUtil.closestPointOnSegment(p1, p2, center));
-    // используем функцию closestPointOnSegment() из Leaflet API для определения ближайшей точки на каждом отрезке к данному "center"
-
-    if (distance < minDistance) {
-      minDistance = distance;
-    }
-  }
-
-  return minDistance;
-}
-
-function calcDistance(polyline, point) {
-  // Calculate the distance from the point to each segment of the polyline
-  var distances = [];
-  for (var i = 0; i < polyline.getLatLngs().length - 1; i++) {
-    var segmentStart = polyline.getLatLngs()[i];
-    var segmentEnd = polyline.getLatLngs()[i + 1];
-    var closestPointOnSegment = LineUtil.closestPointOnSegment(segmentStart, segmentEnd, point);
-    distances.push(point.distanceTo(closestPointOnSegment));
-  }
-
-  // Return the minimum distance found among all segments
-  return Math.min(...distances);
-}
-
-function increaseDistance(x1, y1, x2, y2) {
-  const xc = x1 + (x2 - x1) * 5;
-  const yc = y1 + (y2 - y1) * 5;
-
-  return [xc , yc];
-}
-
-function findMiddlePoint(polyline, latOffset, lngOffset) {
-  let length = polyline.length;
-  let midpointIndex = Math.floor(length / 2);
-
-  // If the number of points is even, we need to average two middle points
-  if (length % 2 === 0) {
-    return [
-      (polyline[midpointIndex - 1][0] + polyline[midpointIndex][0]) / 2 + latOffset,
-      (polyline[midpointIndex - 1][1] + polyline[midpointIndex][1]) / 2 + lngOffset
-    ];
-
-  } else { // Otherwise, just return the single middle point
-    return [polyline[midpointIndex][0] + latOffset, polyline[midpointIndex][1] + lngOffset];
-  }
-}
-// onMounted(() => {
-//
-//   console.log('asdfadsas')
-//
-//   mymap = map('mapid').setView([51.505, -0.09], 13);
-//
-//   tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-//     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-//   }).addTo(mymap);
-//
-//   marker([51.5, -0.09]).addTo(mymap)
-//       .bindPopup('A pretty CSS popup.<br> Easily customizable.')
-//       .openPopup();
-// })
-
-let mymap;
-
-onMounted(() => {
-  mymap = map('mapid').setView([48.952, 142.181], 14);
-
-  tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  }).addTo(mymap);
-
-  const reversePolyline = (coords, pln, mymap) => {
-    console.log('asdf');
-    const reversedLatLngs = coords.reverse();
-    mymap.removeLayer(pln);
-    const plnNest = polyline(reversedLatLngs, { color: getRandomColor(), weight: 5 }).arrowheads({ size: '5px', frequency: 'endonly' })
-        .addTo(mymap);
-    plnNest.on('click', () => reversePolyline(coords, plnNest, mymap))
-  }
-
-  // marker([48.952, 142.181]).addTo(mymap)
-  //     .bindPopup('A pretty CSS popup.<br> Easily customizable.')
-  //     .openPopup();
-
-  // console.log('roads', roads);
-
-
+function drawRoads(roads, mymap) {
+  const polylineGroup = L.layerGroup();
   for (const road of roads) {
     const coords = road.geometry.coordinates.map((item) => {
       const res = [];
@@ -176,80 +51,119 @@ onMounted(() => {
       return res;
     });
 
-    const pln = polyline(coords, { color: getRandomColor(), weight: 5 }).arrowheads({ size: '5px', frequency: 'endonly' })
+    const pln = L.polyline(coords, { color: getRandomColor(), weight: 6 }).arrowheads({ size: '5px', frequency: 'endonly' })
 
-    pln.bindTooltip(`<span style="font-weight:bold">${road.number}</span>`, {permanent: true, className: 'leaflet-tooltip-own' }).openTooltip();
+    pln.bindTooltip(`<span style="font-weight:bold">${road.number}</span>`, { permanent: true, className: 'leaflet-tooltip-own' }).openTooltip();
 
-    pln.on('click', () => reversePolyline(coords, pln, mymap));
+    pln.on('click', () => reversePolyline(coords, pln, mymap, road.number * -1));
 
-    pln.addTo(mymap);
-
-    // Get bounds of polyline so we know where to place marker
-    const bounds = pln.getBounds();
-
-    // Calculate center point of bounds
-    const centerPoint = bounds.getCenter();
-
-    // console.log('distanceToplnCenter', calcDistance(pln, latLng(centerPoint.lng, centerPoint.lat)));
-
-    const middleCoords = findMiddlePoint(coords, 0.0001, 0.0001);
-
-    const centerOffsetted = point(centerPoint.lat, centerPoint.lng).add(point(0.0001, 0.0001));
-
-    console.log('centerOffsetted', centerOffsetted);
-
-
-    // console.log({ middleCoords, centPoint });
-
-    // const alterCoords = [Math.abs(middleCoords[0]-centerPoint.lat)*10000,Math.abs(middleCoords[1]-centerPoint.lng)*10000];
-
-    const dt = distanceBetweenPoints(middleCoords[0], middleCoords[1], centerPoint.lat, centerPoint.lng)*10000;
-    const uniqId = generateUniqueId(5);
-
-    // const uniqString = `My label ${uniqId}`;
-
-    // console.log('distanceBetweenTwoPoints', {
-    //   dt,
-    //   uniqString
-    // });
-
-    // Create DivIcon containing our label text (in this case "My Label")
-    const myLabelDiv = divIcon({
-      className: 'my-label',
-      html: `<span style="font-weight:bold">${road.number}</span>`,
-    });
-
-    let newCoords;
-
-    console.log('distanceBetweenTwoPoints', {
-      dt,
-      number: road.number
-    });
-
-    if (dt > 10) {
-      newCoords = reduceDistance(middleCoords[0], middleCoords[1], centerPoint.lat, centerPoint.lng);
-      // myLabelDiv.options.iconAnchor=[-10,-5];
-      // myLabelDiv.options.popupAnchor=[-10,-5];
-    }
-
+    polylineGroup.addLayer(pln);
   }
+  // polylineGroup.addTo(mymap);
+  return polylineGroup;
+}
 
+function drawPolygons(polygons, mymap) {
+  const polygonGroup = L.layerGroup();
+  for (const item of polygons) {
+    const coords = item.geometry.coordinates.map((item) => {
+      const res = [];
+      res.push(item[1], item[0]);
+      return res;
+    })
 
-// Define coordinates for our polyline
-//   const latlngs = roads.reduce((res, road) => {
-//     const coords = road.geometry.coordinates.map((item) => {
-//       return [item[0], item[1]] = [item[1], item[0]];
-//     });
-//
-//     console.log('coords', coords);
-//
-//     return res.concat(coords);
-//   }, []);
+    console.log('coords', coords);
 
+    const plgn = L.polyline(coords, { color: getRandomColor(), weight: 6 });
 
+    polygonGroup.addLayer(plgn);
+  }
+  polygonGroup.addTo(mymap);
+  return polygonGroup;
+}
 
-  // const mypolyline = polyline(latlngs, { color: 'red' }).arrowheads({ size: '5px' }).addTo(mymap);
-  // draw 5 arrows per line
+function reversePolyline(coords, pln, mymap, number) {
+  const reversedLatLngs = coords.reverse();
+  mymap.removeLayer(pln);
+
+  const plnNest = L.polyline(reversedLatLngs, { color: getRandomColor(), weight: 6 }).arrowheads({ size: '7px', frequency: 'endonly' });
+  plnNest.bindTooltip(`<span style="font-weight:bold">${number}</span>`, { permanent: true, className: 'leaflet-tooltip-own' }).openTooltip();
+  plnNest.addTo(mymap);
+  const changedNumber = number * -1;
+  plnNest.on('click', () => reversePolyline(coords, plnNest, mymap, changedNumber));
+}
+
+let mymap;
+
+onMounted(() => {
+  mymap = L.map('mapid').setView([48.952, 142.181], 14);
+
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+  }).addTo(mymap);
+
+  const polygonGroup = drawPolygons(pickets, mymap);
+
+  const polylineGroup = drawRoads(roads, mymap)
+
+  const MyControl = L.Control.extend({
+    onAdd: function(map) {
+      const container = L.DomUtil.create('div', 'disable-zoom-control');
+
+      const button = L.DomUtil.create('button', '', container);
+      button.innerHTML = 'Сегменты';
+
+      // Add event listener to disable zoom:
+      L.DomEvent.on(button, 'click', function(e) {
+        // map.scrollWheelZoom.disable();
+        // map.doubleClickZoom.disable();
+        if (map.hasLayer(polylineGroup)) {
+          button.innerHTML = 'Пикеты';
+          polylineGroup.removeFrom(map);
+          polygonGroup.addTo(map);
+        } else if (map.hasLayer(polygonGroup)) {
+          button.innerHTML = 'Сегменты';
+          polygonGroup.removeFrom(map);
+          polylineGroup.addTo(map);
+        }
+
+        // Hide myLayerGroup:
+        // myLayerGroup.removeFrom(map);
+        //
+        // // Show myLayergroup:
+        // myLayergroup.addTo(map);
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Prevent default behavior for dblclick:
+        L.DomEvent.disableClickPropagation(container);
+      });
+
+      return container;
+
+      // const container = L.DomUtil.create('div', 'my-custom-control');
+      // container.innerHTML = `
+      //     <div style="border:2px solid rgba(0,0,0,0.2); border-radius: 5px;overflow:hidden">
+      //       <button style="background: white;padding:5px 10px">СЕГМЕНТЫ</button>
+      //     </div>
+      // `;
+      // container.addEventListener('click', (e) => {
+      //   map.scrollWheelZoom.disable();
+      //   e.preventDefault();
+      //   e.stopPropagation();
+      //   console.log('Нажал на сегменты')
+      // })
+      //
+      // return container;
+    },
+
+    onRemove: function(map) {
+      // Remove any listeners, cleanup DOM elements, etc.
+    }
+  });
+
+  const myControl = new MyControl({ position: 'topright' }).addTo(mymap);
 
 });
 
