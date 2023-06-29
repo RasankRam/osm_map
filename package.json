@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@turf/boolean-intersects": "^6.5.0",
+    "@turf/turf": "^6.5.0",
     "leaflet": "^1.9.4",
     "leaflet-arrowheads": "^1.4.0",
     "leaflet-geometryutil": "^0.10.2",

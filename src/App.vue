@@ -17,12 +17,14 @@
 import HelloWorld from './components/HelloWorld.vue'
 import { onMounted, onUnmounted } from 'vue';
 import * as L from 'leaflet';
+import LUtil from 'leaflet-geometryutil';
+import * as turf from '@turf/turf'
+
 import "leaflet-arrowheads";
 import roads from './roads.json';
 import pickets from './pickets.json';
 
-console.log('picket', pickets[0].geometry.coordinates);
-
+const stdPolylines = [];
 
 function sleep (ms) {
   return new Promise((resolve) => {
@@ -30,19 +32,60 @@ function sleep (ms) {
   });
 }
 
-function getRandomColor() {
-  const letters = "0123456789ABCDEF";
-  let color = "#";
+function getRandomColorSmart() {
+  var colors = ['#C25865', '#4f9787', '#42AA85', '#FFC875', '#B467A3', '#3AB2F6', 'orange'];
 
-  // Генерируем шестнадцатеричный код цвета длиной в 6 символов
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)];
+  // Создаем массив для хранения уже использованных цветов
+  if (!getRandomColorSmart.usedColors) {
+    getRandomColorSmart.usedColors = [];
+  }
+  if (!getRandomColorSmart.firstThreeElems) {
+    getRandomColorSmart.firstThreeElems = [];
   }
 
-  return color;
+  // Проверяем, все ли цвета были использованы
+  if (getRandomColorSmart.usedColors.length === colors.length) {
+    getRandomColorSmart.firstThreeElems = getRandomColorSmart.usedColors.slice(0, 3);
+    // Если все цвета были использованы, обнуляем список используемых и начинаем сначала
+    getRandomColorSmart.usedColors = [];
+  }
+
+  if (getRandomColorSmart.firstThreeElems.length > 0 && getRandomColorSmart.firstThreeElems.length === getRandomColorSmart.usedColors.length) {
+    getRandomColorSmart.firstThreeElems = [];
+  }
+
+  var availableColors = colors.filter(function(color) {
+    return !getRandomColorSmart.usedColors.includes(color) && !getRandomColorSmart.firstThreeElems.includes(color);
+  });
+
+  var randomIndex = Math.floor(Math.random() * availableColors.length);
+
+  // Получаем случайный неиспользованный цвет из доступных
+  var randomColor = availableColors[randomIndex];
+
+  // Добавляем выбранный цвет в список уже использованных
+  getRandomColorSmart.usedColors.push(randomColor);
+
+  return randomColor;
 }
 
-function drawRoads(roads, mymap) {
+function selectPolyline(pln, map) {
+  pln.setStyle({ color: 'black' }).arrowheads({ ...pln._arrowheadOptions, color: 'black' })
+  setTimeout(() => {
+    pln.redraw();
+  })
+  if (!stdPolylines.includes(pln)) {
+    stdPolylines.push(pln);
+  } else {
+    const plnIdx = stdPolylines.indexOf(pln);
+    if (plnIdx > -1) {
+      pln.setStyle({ color: pln.options.init_color }).arrowheads({ ...pln._arrowheadOptions, color: pln.options.init_color });
+      stdPolylines.splice(plnIdx, 1);
+    }
+  }
+}
+
+function getRoads(roads, mymap) {
   const polylineGroup = L.layerGroup();
   for (const road of roads) {
     const coords = road.geometry.coordinates.map((item) => {
@@ -51,46 +94,108 @@ function drawRoads(roads, mymap) {
       return res;
     });
 
-    const pln = L.polyline(coords, { color: getRandomColor(), weight: 6 }).arrowheads({ size: '5px', frequency: 'endonly' })
+    const color = getRandomColorSmart();
 
-    pln.bindTooltip(`<span style="font-weight:bold">${road.number}</span>`, { permanent: true, className: 'leaflet-tooltip-own' }).openTooltip();
+    const pln = L.polyline(coords,
+        { color, weight: 6, pane: 'roads', road_num: road.number, road_name: road.name, init_color: color })
+        .arrowheads({ size: '5px', frequency: 'endonly', color })
 
-    pln.on('click', () => reversePolyline(coords, pln, mymap, road.number * -1));
+    pln.bindTooltip(`<span style="font-weight:bold">${road.number}</span>`, { permanent: true, className: 'leaflet-tooltip-own', pane: 'roads' }).openTooltip();
+
+    pln.on('click', (e) => {
+      e.originalEvent.preventDefault();
+      e.originalEvent.stopPropagation();
+
+      L.DomEvent.disableClickPropagation(e.sourceTarget);
+
+      selectPolyline(pln, mymap);
+      // reversePolyline(e, pln)
+    });
 
     polylineGroup.addLayer(pln);
   }
-  // polylineGroup.addTo(mymap);
   return polylineGroup;
 }
 
-function drawPolygons(polygons, mymap) {
-  const polygonGroup = L.layerGroup();
-  for (const item of polygons) {
-    const coords = item.geometry.coordinates.map((item) => {
+function getPickets(pickets, mymap) {
+  const polygonGroup = L.featureGroup();
+  for (const picket of pickets) {
+    const coords = picket.geometry.coordinates.map((item) => {
       const res = [];
       res.push(item[1], item[0]);
       return res;
     })
 
-    console.log('coords', coords);
-
-    const plgn = L.polyline(coords, { color: getRandomColor(), weight: 6 });
+    const plgn = L.polyline(coords, { color: getRandomColorSmart(), weight: 6, pane: 'pickets', road_name: picket.road_name });
 
     polygonGroup.addLayer(plgn);
   }
-  polygonGroup.addTo(mymap);
   return polygonGroup;
 }
 
-function reversePolyline(coords, pln, mymap, number) {
-  const reversedLatLngs = coords.reverse();
-  mymap.removeLayer(pln);
+function doBoundingBoxesOverlap(boundsA, boundsB) {
+  return boundsA.overlaps(boundsB);
+}
 
-  const plnNest = L.polyline(reversedLatLngs, { color: getRandomColor(), weight: 6 }).arrowheads({ size: '7px', frequency: 'endonly' });
-  plnNest.bindTooltip(`<span style="font-weight:bold">${number}</span>`, { permanent: true, className: 'leaflet-tooltip-own' }).openTooltip();
-  plnNest.addTo(mymap);
-  const changedNumber = number * -1;
-  plnNest.on('click', () => reversePolyline(coords, plnNest, mymap, changedNumber));
+function checkIntersected(picketsLayer, stdPolylines, map) {
+
+  const roadNames = stdPolylines.map((i) => i.options.road_name);
+
+  stdPolylines.forEach((pln) => {
+
+    console.log('pln.options', pln.options);
+
+
+    // const boundStdPln = pln.getBounds();
+
+    picketsLayer.eachLayer((layer) => {
+
+      if (!roadNames.includes(layer.options.road_name)) {
+        layer.setStyle({ opacity: 0 })
+      }
+
+
+      // const boundPicketPln = layer.getBounds();
+      //
+      // const isIntersecting = boundStdPln.overlaps(boundPicketPln);
+      //
+      // if (isIntersecting) {
+      //   layer.setStyle({ color: 'red' });
+      //   pln.setStyle({ color: 'red' })
+      // }
+
+
+    })
+  })
+}
+
+function renderLayerModePane(map, { button, roadPaneStyle, picketPaneStyle, roadsLayer, picketsLayer }) {
+  console.log('roadsPaneStyle', roadPaneStyle);
+  if (!roadPaneStyle.display) {
+    checkIntersected(picketsLayer, stdPolylines, map);
+    button.innerHTML = 'Режим редактирования';
+    roadPaneStyle.display = 'none';
+    picketPaneStyle.display = '';
+  } else if (!picketPaneStyle.display) {
+    picketsLayer.eachLayer(((layer) => layer.setStyle({ opacity: 1 })))
+    button.innerHTML = 'Режим чтения';
+    picketPaneStyle.display = 'none';
+    roadPaneStyle.display = '';
+  } else {
+    button.innerHTML = 'Режим чтения';
+    roadPaneStyle.display = '';
+  }
+}
+
+function reversePolyline(e, pln) {
+  const reversedLatLngs = pln.getLatLngs();
+  reversedLatLngs.reverse();
+  pln.setLatLngs(reversedLatLngs);
+
+  const changedRoadNum = pln.options.road_num * -1;
+  pln.options.road_num = changedRoadNum;
+
+  pln.getTooltip().setContent(`<span style="font-weight:bold">${changedRoadNum}</span>`);
 }
 
 let mymap;
@@ -102,60 +207,35 @@ onMounted(() => {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
   }).addTo(mymap);
 
-  const polygonGroup = drawPolygons(pickets, mymap);
+  const roadPane = mymap.createPane('roads');
+  const picketsPane = mymap.createPane('pickets');
 
-  const polylineGroup = drawRoads(roads, mymap)
+  const picketsLayer = getPickets(pickets, mymap);
+  const roadsLayer = getRoads(roads, mymap);
+
+  picketsLayer.addTo(mymap);
+  roadsLayer.addTo(mymap);
+  roadPane.style.display = 'none';
+  picketsPane.style.display = 'none';
 
   const MyControl = L.Control.extend({
     onAdd: function(map) {
       const container = L.DomUtil.create('div', 'disable-zoom-control');
 
       const button = L.DomUtil.create('button', '', container);
-      button.innerHTML = 'Сегменты';
 
-      // Add event listener to disable zoom:
+      renderLayerModePane(mymap, { button, roadPaneStyle: roadPane.style, picketPaneStyle: picketsPane.style, picketsLayer });
+
       L.DomEvent.on(button, 'click', function(e) {
-        // map.scrollWheelZoom.disable();
-        // map.doubleClickZoom.disable();
-        if (map.hasLayer(polylineGroup)) {
-          button.innerHTML = 'Пикеты';
-          polylineGroup.removeFrom(map);
-          polygonGroup.addTo(map);
-        } else if (map.hasLayer(polygonGroup)) {
-          button.innerHTML = 'Сегменты';
-          polygonGroup.removeFrom(map);
-          polylineGroup.addTo(map);
-        }
-
-        // Hide myLayerGroup:
-        // myLayerGroup.removeFrom(map);
-        //
-        // // Show myLayergroup:
-        // myLayergroup.addTo(map);
+        renderLayerModePane(mymap, { button, roadPaneStyle: roadPane.style, picketPaneStyle: picketsPane.style, picketsLayer })
 
         e.preventDefault();
         e.stopPropagation();
 
-        // Prevent default behavior for dblclick:
         L.DomEvent.disableClickPropagation(container);
       });
 
       return container;
-
-      // const container = L.DomUtil.create('div', 'my-custom-control');
-      // container.innerHTML = `
-      //     <div style="border:2px solid rgba(0,0,0,0.2); border-radius: 5px;overflow:hidden">
-      //       <button style="background: white;padding:5px 10px">СЕГМЕНТЫ</button>
-      //     </div>
-      // `;
-      // container.addEventListener('click', (e) => {
-      //   map.scrollWheelZoom.disable();
-      //   e.preventDefault();
-      //   e.stopPropagation();
-      //   console.log('Нажал на сегменты')
-      // })
-      //
-      // return container;
     },
 
     onRemove: function(map) {
@@ -187,7 +267,7 @@ onUnmounted(() => {
   border-right-color: rgba(0, 0, 0, 0.4);
 }
 .leaflet-tooltip-own {
-  position: absolute;
+  z-index:999;
   padding: 4px;
   background-color: transparent;
   border: 0px solid #000;
