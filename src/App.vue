@@ -9,7 +9,7 @@
   </div>
   <HelloWorld msg="Vite + Vue" />
 
-  <div style="height: 500px;width:500px;" id="mapid"></div>
+  <div style="height: 500px;width:500px;user-select:none" id="mapid"></div>
 
 </template>
 
@@ -69,6 +69,14 @@ function getRandomColorSmart() {
   return randomColor;
 }
 
+function handleKeyDown(event, stdPolylines) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.keyCode === 8 || event.key === 'Backspace' || event.code === 'Space') {
+    stdPolylines.forEach((pln) => reversePolyline(pln));
+  }
+}
+
 function selectPolyline(pln, map) {
   pln.setStyle({ color: 'black' }).arrowheads({ ...pln._arrowheadOptions, color: 'black' })
   setTimeout(() => {
@@ -109,7 +117,6 @@ function getRoads(roads, mymap) {
       L.DomEvent.disableClickPropagation(e.sourceTarget);
 
       selectPolyline(pln, mymap);
-      // reversePolyline(e, pln)
     });
 
     polylineGroup.addLayer(pln);
@@ -187,7 +194,7 @@ function renderLayerModePane(map, { button, roadPaneStyle, picketPaneStyle, road
   }
 }
 
-function reversePolyline(e, pln) {
+function reversePolyline(pln) {
   const reversedLatLngs = pln.getLatLngs();
   reversedLatLngs.reverse();
   pln.setLatLngs(reversedLatLngs);
@@ -198,10 +205,85 @@ function reversePolyline(e, pln) {
   pln.getTooltip().setContent(`<span style="font-weight:bold">${changedRoadNum}</span>`);
 }
 
+function handleContextMenu(e, map) {
+  e.originalEvent.preventDefault();
+
+  if (e.originalEvent.button === 2) {
+    const startPoint = e.latlng; // Store the starting position of the selection
+    let rectLayerObj = { };
+    const stdCtxPlns = [];
+
+    map.on('mousemove', (e) => handleMouseMove(e, startPoint, map, rectLayerObj));   // Listen for mousemove event to update the selection
+
+    document.addEventListener('mouseup', () => handleMouseUp(map, rectLayerObj, stdCtxPlns));
+  }
+
+  console.log('event', e);
+
+  console.log('e.originalEvent', e.originalEvent);
+}
+
+// Event handler for mousemove event while making the selection
+function handleMouseMove(event, startPoint, map, rectLayerObj) {
+  const endPoint = event.latlng;
+
+  if (!rectLayerObj.layer) {
+    rectLayerObj.layer = L.rectangle([startPoint, endPoint], { color: 'blue', weight: 2, fillOpacity: 0 }).addTo(map);
+  } else {
+    rectLayerObj.layer.setBounds(L.latLngBounds(startPoint, endPoint));
+  }
+}
+
+// Event handler for mouseup event to complete polyline selection within bounds
+function handleMouseUp(map, rectLayerObj, stdCtxPlns) {
+  map.off('mousemove', handleMouseMove);   // Remove listener for further updates
+
+  document.removeEventListener('mouseup', handleMouseUp);
+
+  performSelectionAction(map, rectLayerObj.layer.getBounds(), stdCtxPlns);
+
+  clearRectangle(map, rectLayerObj, stdCtxPlns);
+}
+
+// Function to perform action with selected bounds (replace with your own logic)
+function performSelectionAction(map, bounds, stdCtxPlns){
+  stdCtxPlns = [];
+
+  map.eachLayer(function(layer){
+    // if (layer instanceof L.Polyline && layer.getBounds().intersects(bounds)){
+    //   stdCtxPlns.push(layer);
+    //   layer.setStyle({color: 'green'});
+    // }
+  });
+
+}
+
+// Function to clear the rectangle layer and reset polyline styles
+function clearRectangle(map, rectLayerObj, stdCtxPlns){
+  console.log('rectLayerObj', rectLayerObj);
+
+  if(rectLayerObj.layer){
+    map.removeLayer(rectLayerObj.layer);
+    rectLayerObj.layer = undefined;
+  }
+
+  stdCtxPlns.forEach(function(polyline){
+    polyline.setStyle({color: 'blue'});
+  });
+
+  stdCtxPlns = [];
+}
+
+
 let mymap;
 
 onMounted(() => {
+  const mapContainer = document.querySelector('#mapid');
+  mapContainer.addEventListener('keydown', (e) =>  handleKeyDown(e, stdPolylines));
+
   mymap = L.map('mapid').setView([48.952, 142.181], 14);
+
+  mymap.on('contextmenu', (e) => handleContextMenu(e, mymap));
 
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -256,6 +338,10 @@ onUnmounted(() => {
 </script>
 
 <style>
+/*#mapid:focus-visible {*/
+/*  outline: none;*/
+/*  box-shadow: none;*/
+/*}*/
 .leaflet-tooltip-left:before {
   right: 0;
   margin-right: -12px;
