@@ -12,12 +12,10 @@
 </template>
 
 <script setup>
-import HelloWorld from './components/HelloWorld.vue'
 import { onMounted, onUnmounted, computed, reactive, watch, shallowRef, ref } from 'vue';
 import * as L from 'leaflet';
 import { getRandomColorSmart } from './utils';
 import axios from './plugins/axios';
-import * as turf from '@turf/turf';
 
 function debounce(func, delay) {
   let timeoutId;
