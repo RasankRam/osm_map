@@ -13,17 +13,30 @@
 
 <script setup>
 import HelloWorld from './components/HelloWorld.vue'
-import { onMounted, onUnmounted, ref, computed, reactive } from 'vue';
+import { onMounted, onUnmounted, computed, reactive, watch, shallowRef, ref } from 'vue';
 import * as L from 'leaflet';
-import LUtil from 'leaflet-geometryutil';
-import * as turf from '@turf/turf'
+import { getRandomColorSmart } from './utils';
+import axios from './plugins/axios';
+import * as turf from '@turf/turf';
+
+function debounce(func, delay) {
+  let timeoutId;
+
+  return function(...args) {
+    clearTimeout(timeoutId);
+
+    timeoutId = setTimeout(() => {
+      func.apply(this, args);
+    }, delay);
+  };
+}
 
 import "leaflet-arrowheads";
 import roads from './roads.json';
 import pickets from './pickets.json';
 
-let stdPolylines = ref([]);
-let stdPickets = ref([]);
+let stdPolylines = shallowRef([]);
+let stdPickets = shallowRef([]);
 
 function getCtxMenuCoordsFabric() {
   return { top: '0px', left: '0px' };
@@ -32,9 +45,33 @@ function getCtxMenuCoordsFabric() {
 let handleMouseMoveWrap;
 let handleMouseUpWrap;
 let msgBox = {};
+let sendBox = {};
 const workMode = ref();
 const showContextMenu = ref(false);
-const ctxMenuCoords = reactive(getCtxMenuCoordsFabric())
+const ctxMenuCoords = reactive(getCtxMenuCoordsFabric());
+
+let roadsLayer = [];
+let picketsLayer = [];
+
+watch(stdPickets, (v) => {
+  if (stdPickets.value.length > 0) {
+    msgBox.value.setContent(`Выбранных пикетов: ${stdPickets.value.length}`)
+    msgBox.value.show();
+    sendBox.value.show();
+  } else {
+    sendBox.value.hide();
+    msgBox.value.hide();
+  }
+});
+
+watch(stdPolylines, (v) => {
+  if (stdPolylines.value.length > 0) {
+    msgBox.value.show();
+    msgBox.value.setContent(`Выбрано дорог: ${stdPolylines.value.length}`)
+  } else {
+    msgBox.value.hide();
+  }
+})
 
 const contextMenu = computed(() => {
   if(!showContextMenu.value) return [];
@@ -57,13 +94,15 @@ const contextMenu = computed(() => {
     return res;
   } else if (workMode.value === 'editing') {
 
-    console.log('stdPickets', stdPickets.value);
-
     if (stdPickets.value.length) {
       res.push({
         text: 'Добавить комментарий',
         onClick: () => {
-          prompt('Введите комментарий для пикетов')
+          const insertedComment = prompt('Введите комментарий для пикетов')
+          stdPickets.value.forEach((pln) => {
+            pln.options.comment = insertedComment;
+          })
+
         }
       })
     }
@@ -72,49 +111,6 @@ const contextMenu = computed(() => {
   }
   return [];
 })
-
-function sleep (ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function getRandomColorSmart() {
-  const colors = ['#C25865', '#4f9787', '#42AA85', '#FFC875', '#B467A3', '#3AB2F6', 'orange'];
-
-  // Создаем массив для хранения уже использованных цветов
-  if (!getRandomColorSmart.usedColors) {
-    getRandomColorSmart.usedColors = [];
-  }
-  if (!getRandomColorSmart.firstThreeElems) {
-    getRandomColorSmart.firstThreeElems = [];
-  }
-
-  // Проверяем, все ли цвета были использованы
-  if (getRandomColorSmart.usedColors.length === colors.length) {
-    getRandomColorSmart.firstThreeElems = getRandomColorSmart.usedColors.slice(0, 3);
-    // Если все цвета были использованы, обнуляем список используемых и начинаем сначала
-    getRandomColorSmart.usedColors = [];
-  }
-
-  if (getRandomColorSmart.firstThreeElems.length > 0 && getRandomColorSmart.firstThreeElems.length === getRandomColorSmart.usedColors.length) {
-    getRandomColorSmart.firstThreeElems = [];
-  }
-
-  const availableColors = colors.filter(function(color) {
-    return !getRandomColorSmart.usedColors.includes(color) && !getRandomColorSmart.firstThreeElems.includes(color);
-  });
-
-  const randomIndex = Math.floor(Math.random() * availableColors.length);
-
-  // Получаем случайный неиспользованный цвет из доступных
-  const randomColor = availableColors[randomIndex];
-
-  // Добавляем выбранный цвет в список уже использованных
-  getRandomColorSmart.usedColors.push(randomColor);
-
-  return randomColor;
-}
 
 function selectionPolyline(pln) {
   if (!stdPolylines.value.includes(pln)) {
@@ -125,18 +121,15 @@ function selectionPolyline(pln) {
 }
 
 function selectPolyline(pln) {
+  stdPolylines.value = [...stdPolylines.value, pln];
   pln.setStyle({ color: 'black' }).arrowheads({ ...pln._arrowheadOptions, color: 'black' })
-  stdPolylines.value.push(pln);
   setTimeout(() => pln.redraw())
 }
 
 function unselectPolyline(pln) {
-  const plnIdx = stdPolylines.value.indexOf(pln);
-  if (plnIdx > -1) {
-    pln.setStyle({ color: pln.options.init_color }).arrowheads({ ...pln._arrowheadOptions, color: pln.options.init_color });
-    stdPolylines.value.splice(plnIdx, 1);
-    setTimeout(() => pln.redraw())
-  }
+  stdPolylines.value = stdPolylines.value.filter((i) => i !== pln);
+  pln.setStyle({ color: pln.options.init_color }).arrowheads({ ...pln._arrowheadOptions, color: pln.options.init_color });
+  setTimeout(() => pln.redraw())
 }
 
 function getRoads(roads, mymap) {
@@ -163,12 +156,6 @@ function getRoads(roads, mymap) {
       L.DomEvent.disableClickPropagation(e.sourceTarget);
 
       selectionPolyline(pln);
-      if (stdPolylines.value.length) {
-        msgBox.value.show();
-        msgBox.value.setContent(`Выбрано дорог: ${stdPolylines.value.length}`)
-      } else {
-        msgBox.value.hide();
-      }
     });
 
     polylineGroup.addLayer(pln);
@@ -187,7 +174,8 @@ function getPickets(pickets, mymap) {
 
     const color = getRandomColorSmart();
 
-    const plgn = L.polyline(coords, { color, weight: 6, pane: 'pickets', road_name: picket.road_name, init_color: color });
+    const plgn = L.polyline(coords, { color, weight: 6, pane: 'pickets', road_name: picket.road_name,
+      road_num: picket.road_num, picket_id: picket.picket_id, init_color: color });
 
     plgn.on('click', (e) => {
       e.originalEvent.preventDefault();
@@ -196,12 +184,6 @@ function getPickets(pickets, mymap) {
       L.DomEvent.disableClickPropagation(e.sourceTarget);
 
       selectionPicket(e.sourceTarget, stdPickets);
-      if (stdPickets.value.length) {
-        msgBox.value.show();
-        msgBox.value.setContent(`Выбранных пикетов: ${stdPickets.value.length}`)
-      } else {
-        msgBox.value.hide();
-      }
     })
 
     polygonGroup.addLayer(plgn);
@@ -226,7 +208,6 @@ function checkIntersected(picketsLayer, stdPolylines) {
 }
 
 function renderLayerModePane(map, { button, roadPaneStyle, workMode, picketPaneStyle, roadsLayer, picketsLayer }) {
-  console.log('roadsPaneStyle', roadPaneStyle);
   if (!roadPaneStyle.display) {
     checkIntersected(picketsLayer, stdPolylines);
     button.innerHTML = 'Режим редактирования';
@@ -264,9 +245,10 @@ function handleRectSelection(e, map) {
     const startPoint = e.latlng; // Store the starting position of the selection
     let rectLayerObj = { };
 
-    const instdElems = [];
+    const instdPickets = [];
+    const instdRoads = [];
 
-    handleMouseMoveWrap = handleMouseMove.bind(null, startPoint, map, rectLayerObj, instdElems);
+    handleMouseMoveWrap = handleMouseMove.bind(null, startPoint, map, rectLayerObj, instdPickets, instdRoads);
     handleMouseUpWrap = handleMouseUp.bind(null, map, rectLayerObj, stdPickets);
 
     map.on('mousemove', handleMouseMoveWrap);
@@ -276,39 +258,63 @@ function handleRectSelection(e, map) {
 }
 
 // Event handler for mousemove event while making the selection
-function handleMouseMove(startPoint, map, rectLayerObj, instdElems, event) {
+function handleMouseMove(startPoint, map, rectLayerObj, instdPickets, instdRoads, event) {
 
   const endPoint = event.latlng;
 
-  const newlyInstdElems = [];
+  const newlyinstdPickets = [];
+  const newlyinstdRoads = [];
 
   if (rectLayerObj.layer === undefined) {
     rectLayerObj.layer = L.rectangle([startPoint, endPoint], { color: '#1f1f1f', weight: 2, fillOpacity: 0 }).addTo(map);
   } else if (rectLayerObj.layer) {
     rectLayerObj.layer.setBounds(L.latLngBounds(startPoint, endPoint));
     const bounds = rectLayerObj.layer.getBounds();
-    map.eachLayer(function(layer){
-      if (layer instanceof L.Polyline && layer.options.pane === 'pickets') {
-        if (layer.getBounds().intersects(bounds)) {
-          newlyInstdElems.push(layer);
-        }
-      }
-    });
 
-    instdElems.forEach((pln) => {
-      if (!newlyInstdElems.includes(pln)) {
+    if (roadsLayer.getLayers()[0].getElement().closest('.leaflet-roads-pane').style.display === '') {
+      roadsLayer.eachLayer((pln) => {
+        if (pln.getBounds().intersects(bounds)) {
+          newlyinstdRoads.push(pln);
+        }
+      })
+    }
+
+    if (picketsLayer.getLayers()[0].getElement().closest('.leaflet-pickets-pane').style.display === '') {
+      picketsLayer.eachLayer((pln) => {
+        if (pln.getBounds().intersects(bounds)) {
+          newlyinstdPickets.push(pln);
+        }
+      })
+    }
+
+    instdPickets.forEach((pln) => {
+      if (!newlyinstdPickets.includes(pln)) {
         unselectPicket(pln, stdPickets);
       }
     })
 
-    newlyInstdElems.forEach((pln) => {
-      if (!instdElems.includes(pln)) {
+    instdRoads.forEach((pln) => {
+      if (!newlyinstdRoads.includes(pln)) {
+        unselectPolyline(pln);
+      }
+    })
+
+    newlyinstdPickets.forEach((pln) => {
+      if (!instdPickets.includes(pln)) {
         selectPicket(pln, stdPickets);
       }
     });
 
-    instdElems.splice(0, instdElems.length);
-    instdElems.push(...newlyInstdElems);
+    newlyinstdRoads.forEach((pln) => {
+      if (!instdRoads.includes(pln)) {
+        selectPolyline(pln);
+      }
+    })
+
+    instdPickets.splice(0, instdPickets.length);
+    instdPickets.push(...newlyinstdPickets);
+    instdRoads.splice(0, instdRoads.length);
+    instdRoads.push(...newlyinstdRoads);
   }
 }
 
@@ -317,9 +323,6 @@ function handleMouseUp(map, rectLayerObj, stdPickets) {
 
   document.removeEventListener('mouseup', handleMouseUpWrap);
   map.off('mousemove', handleMouseMoveWrap);
-
-  msgBox.value.setContent(`Выбранных пикетов: ${stdPickets.value.length}`)
-  msgBox.value.show();
 
   clearRectangle(map, rectLayerObj);
 }
@@ -333,17 +336,14 @@ function selectionPicket(pln, stdPickets) {
 }
 
 function selectPicket(pln, stdPickets) {
-  stdPickets.value.push(pln);
+  stdPickets.value = [...stdPickets.value, pln];
   pln.setStyle({ color: 'black' })
 }
 
 function unselectPicket(pln, stdPickets) {
-  const index = stdPickets.value.indexOf(pln)
-  if (index > -1) {
-    stdPickets.value.splice(index, 1);
-    const init_color = pln.options.init_color;
-    pln.setStyle({ color: init_color })
-  }
+  stdPickets.value = stdPickets.value.filter((i) => i !== pln);
+  const init_color = pln.options.init_color;
+  pln.setStyle({ color: init_color })
 }
 
 // Function to clear the rectangle layer and reset polyline styles
@@ -372,24 +372,28 @@ onMounted(() => {
       ctxMenuCoords.top = mousePosition.y + 'px';
 
         // Show the context menu
-      showContextMenu.value = true;
+      if (stdPickets.value.length || stdPolylines.value.length) {
+        showContextMenu.value = true;
+      }
     }
   })
 
-  // mymap.on('contextmenu', function(e) {
-  //
-  //   if (e.originalEvent.button === 2) {
-  //     handleRectSelection(e, mymap);
-  //   }
-  //
-  //   ctxMenuCoords.left = e.originalEvent.pageX + 'px';
-  //   ctxMenuCoords.top = e.originalEvent.pageY + 'px';
-  //
-  //   // Show the context menu
-  //   showContextMenu.value = true;
-  // });
+  mymap.on('contextmenu', function(e) {
 
-  mymap.on('contextmenu', (e) => handleRectSelection(e, mymap));
+    if (e.originalEvent.button === 2) {
+      e.originalEvent.preventDefault();
+      e.originalEvent.stopPropagation();
+    }
+  });
+
+  mymap.on('mousedown', (e) => {
+    if (e.originalEvent.button === 2) {
+      e.originalEvent.preventDefault();
+      e.originalEvent.stopPropagation();
+
+      handleRectSelection(e, mymap);
+    }
+  });
 
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: false
@@ -398,8 +402,8 @@ onMounted(() => {
   const roadPane = mymap.createPane('roads');
   const picketsPane = mymap.createPane('pickets');
 
-  const picketsLayer = getPickets(pickets, mymap);
-  const roadsLayer = getRoads(roads, mymap);
+  picketsLayer = getPickets(pickets, mymap);
+  roadsLayer = getRoads(roads, mymap);
 
   picketsLayer.addTo(mymap);
   roadsLayer.addTo(mymap);
@@ -429,20 +433,94 @@ onMounted(() => {
 
   registerMsgBox(msgBox, mymap);
   registerChgModeBtn(workMode, { roadPane, picketsPane, picketsLayer, map: mymap })
-
+  registerSendBtn(sendBox, { map: mymap });
 });
+
+function registerSendBtn(bindVar, { map }) {
+  const sendBtn = L.control({ position: 'bottomright' });
+
+  sendBtn.onAdd = function () {
+    const container = L.DomUtil.create('button', 'msg-box-wrap msg-box-wrap_sendBtn');
+
+    const mainContent = L.DomUtil.create('div', 'msg-box msg-box_sendBtn', container);
+
+    const button = L.DomUtil.create('span', '', mainContent);
+
+    button.innerHTML = 'S';
+
+    container.style.display = 'none';
+
+    this._container = container;
+
+    L.DomEvent.on(container, 'click', async function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      L.DomEvent.disableClickPropagation(container);
+
+
+      let postData;
+      try {
+        postData = stdPickets.value.map((pln) => {
+          const plnOptions = pln.options;
+
+          if (!plnOptions.comment) {
+            throw new Error('no_comment');
+          }
+
+          return {
+            picket_id: plnOptions.picket_id,
+            road_num: plnOptions.road_num,
+            comment: plnOptions.comment,
+          }
+        })
+      } catch (err) {
+        if (err.message !== 'no_comment') throw err;
+        alert('Не у всех выбранных пикетов есть комментарий для отправки')
+        return;
+      }
+
+      let res;
+      try {
+        res = await axios.post('pickets/comment', postData);
+        sendBox.value.hide();
+        stdPickets.value = [];
+      } catch (err) {
+        alert('Не получилось задать комментарии пикетам');
+        console.log('commentSaveErr', err);
+      }
+
+    });
+
+    return container;
+  }
+
+  sendBtn.show = debounce(function() {
+    this._container.style.display = '';
+  }, 100);
+
+  sendBtn.hide = debounce(function () {
+    this._container.style.display = 'none';
+  }, 100);
+
+  bindVar.value = sendBtn;
+
+  sendBtn.addTo(map)
+}
 
 function registerChgModeBtn(workMode, { roadPane, picketsPane, picketsLayer, map }) {
   const chgBtn = L.control({ position: 'topright' });
 
   chgBtn.onAdd = function () {
-    const container = L.DomUtil.create('div', 'disable-zoom-control');
+    const container = L.DomUtil.create('button', 'msg-box-wrap msg-box-wrap_chgMode');
 
-    const button = L.DomUtil.create('button', '', container);
+    const mainContent = L.DomUtil.create('div', 'msg-box', container);
+
+    const button = L.DomUtil.create('span', '', mainContent);
 
     renderLayerModePane(mymap, { button, workMode, roadPaneStyle: roadPane.style, picketPaneStyle: picketsPane.style, picketsLayer });
 
-    L.DomEvent.on(button, 'click', function(e) {
+    L.DomEvent.on(container, 'click', function(e) {
       renderLayerModePane(mymap, { button, workMode, roadPaneStyle: roadPane.style, picketPaneStyle: picketsPane.style, picketsLayer })
 
       e.preventDefault();
@@ -463,7 +541,7 @@ function registerMsgBox(variable, map) {
   msgBox.onAdd = function () {
     const container = L.DomUtil.create('div', 'msg-box-wrap');
 
-    const mainContent = L.DomUtil.create('div', 'msg-box', container);
+    const mainContent = L.DomUtil.create('div', 'msg-box msg-box_dataBox', container);
 
     mainContent.innerHTML = 'asdf';
 
@@ -503,6 +581,14 @@ onUnmounted(() => {
 </script>
 
 <style>
+* {
+  box-sizing: border-box;
+}
+
+button:focus, button:focus-visible {
+  outline: none;
+}
+
 #context-menu-list-wrap {
   position: absolute;
   z-index: 999;
@@ -561,26 +647,31 @@ onUnmounted(() => {
 
 .msg-box-wrap {
   border: 2px solid rgba(0,0,0,0.2);
-  border-radius:10px;
+  background: none;
+  border-radius: 5px;
+  padding: 0;
   overflow: hidden;
+}
+
+.msg-box-wrap_chgMode {
+  border-radius: 8px;
+  width: 160px;
+}
+
+.msg-box-wrap_sendBtn {
+  /*border: 2px solid black;*/
 }
 
 .msg-box {
   background: rgba(255,255,255,0.9);
-  padding: 7px 5px;
-  width: 145px;
+  padding: 7px 8px;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
+.msg-box_dataBox {
+  width: 156px;
 }
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.vue:hover {
-  filter: drop-shadow(0 0 2em #42b883aa);
+
+.msg-box_sendBtn {
+  width: 34px;
 }
 </style>
