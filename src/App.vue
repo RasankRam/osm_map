@@ -30,8 +30,8 @@ function debounce(func, delay) {
 }
 
 import "leaflet-arrowheads";
-import roads from './roads.json';
-import pickets from './pickets.json';
+import roads_json from './roads.json';
+import pickets_json from './pickets.json';
 
 let stdPolylines = shallowRef([]);
 let stdPickets = shallowRef([]);
@@ -354,7 +354,28 @@ function clearRectangle(map, rectLayerObj){
 
 let mymap;
 
-onMounted(() => {
+onMounted(async () => {
+  let roads;
+  let pickets;
+
+  try {
+    ({ data: pickets } = axios.get('https://geo.oeswork.io/api/pickets'));
+  } catch (err) {
+    console.log('err download pickets');
+    pickets = pickets_json;
+  }
+
+  try {
+    ({ data: roads } = axios.get('https://geo.oeswork.io/api/roads'));
+  } catch (err) {
+    console.log('err download roads');
+    roads = roads_json;
+  }
+
+
+
+
+
   const mousePosition = {x:0, y:0};
   document.addEventListener('mousemove', function(mouseMoveEvent){
     mousePosition.x = mouseMoveEvent.pageX;
