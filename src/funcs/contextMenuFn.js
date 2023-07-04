@@ -1,6 +1,6 @@
 import { reversePolyline } from './reversePolyline';
 
-export const contextMenuFn = ({ workMode, stdRoads, stdPickets, showContextMenu }) => {
+export const contextMenuFn = ({ workMode, stdRoads, stdPickets, showContextMenu, picketsLayer }) => {
   if(!showContextMenu.value) return [];
 
   const res = [];
@@ -11,7 +11,7 @@ export const contextMenuFn = ({ workMode, stdRoads, stdPickets, showContextMenu 
       res.push({
         text: 'Поменять направление',
         onClick: () => {
-          stdRoads.value.forEach((pln) => reversePolyline(pln));
+          stdRoads.value.forEach((pln) => reversePolyline({ pln, picketsLayer }));
         }
       })
     }

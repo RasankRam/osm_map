@@ -48,6 +48,7 @@ function handleMouseMove({ startPoint, map, rectLayerObj, instdPickets, instdRoa
     }
 
     if (picketsLayer.value.getLayers()[0].getElement().closest('.leaflet-pickets-pane').style.display === '') {
+
       picketsLayer.value.eachLayer((pln) => {
         if (pln.getBounds().intersects(bounds)) {
           newlyinstdPickets.push(pln);

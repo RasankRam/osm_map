@@ -62,7 +62,7 @@ watch(stdPolylines, (v) => {
   }
 })
 
-const contextMenu = computed(contextMenuFn.bind(null, { workMode, stdRoads: stdPolylines, stdPickets, showContextMenu }));
+const contextMenu = computed(contextMenuFn.bind(null, { workMode, stdRoads: stdPolylines, stdPickets, showContextMenu, picketsLayer }));
 
 let mymap;
 
@@ -71,18 +71,19 @@ onMounted(async () => {
   let pickets;
 
   try {
-    ({ data: pickets } = await axios.get('https://geo.oeswork.io/api/pickets'));
-  } catch (err) {
-    console.log('err download pickets');
-    pickets = pickets_json;
-  }
-
-  try {
     ({ data: roads } = await axios.get('https://geo.oeswork.io/api/roads'));
   } catch (err) {
     console.log('err download roads');
     roads = roads_json;
   }
+
+  try {
+    ({ data: pickets } = await axios.get('https://geo.oeswork.io/api/pickets'));
+  } catch (err) {
+    pickets = pickets_json;
+  }
+
+
 
   const mousePosition = { x:0, y:0 };
 
@@ -101,7 +102,7 @@ onMounted(async () => {
   const roadPane = mymap.createPane('roads');
   const picketsPane = mymap.createPane('pickets');
 
-  picketsLayer.value = getPickets({ pickets, stdPickets });
+  picketsLayer.value = getPickets({ pickets, stdPickets, roads  });
   roadsLayer.value = getRoads({ roads, stdRoads: stdPolylines });
 
   picketsLayer.value.addTo(mymap);

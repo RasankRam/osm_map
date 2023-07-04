@@ -2,8 +2,15 @@ import * as L from 'leaflet';
 import {getRandomColorSmart} from '../utils';
 import {selectionPicket} from './selectionPicket';
 
-function getPickets({ pickets, stdPickets }) {
+function getPickets({ pickets, stdPickets, roads }) {
   const polygonGroup = L.featureGroup();
+
+  const mappedRoads = roads.map((pln) => {
+    return pln.number;
+  })
+
+  pickets = pickets.filter((i) => mappedRoads.includes(i.road_num));
+
   for (const picket of pickets) {
     const coords = picket.geometry.coordinates.map((item) => {
       const res = [];
