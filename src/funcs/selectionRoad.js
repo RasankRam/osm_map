@@ -1,8 +1,8 @@
 function selectionRoad({ pln, stdRoads }) {
   if (!stdRoads.value.includes(pln)) {
-    selectRoad(pln);
+    selectRoad({ pln, stdRoads });
   } else {
-    unselectRoad(pln);
+    unselectRoad({ pln, stdRoads});
   }
 }
 
