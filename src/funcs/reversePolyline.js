@@ -1,4 +1,4 @@
-function reversePolyline({ pln, picketsLayer }) {
+function reversePolyline({ pln, picketsLayer, roadsLayer }) {
   const reversedLatLngs = pln.getLatLngs();
   reversedLatLngs.reverse();
   pln.setLatLngs(reversedLatLngs);
@@ -7,10 +7,12 @@ function reversePolyline({ pln, picketsLayer }) {
   pln.options.road_num = changedRoadNum;
 
   picketsLayer.value.eachLayer((layer) => {
-    if (layer.options.road_name === pln.options.road_name) {
-      layer.options.road_num = pln.options.road_num;
+    if (changedRoadNum === layer.options.road_num) {
+      layer.getElement().style.display = '';
+    } else {
+      layer.getElement().style.display = 'none';
     }
-  })
+  });
 
   pln.getTooltip().setContent(`<span style="font-weight:bold">${changedRoadNum}</span>`);
 }

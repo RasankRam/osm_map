@@ -33,6 +33,22 @@ function getCtxMenuCoordsFabric() {
   return { top: '0px', left: '0px' };
 }
 
+function hideNotDirPickets({ roadsLayer, picketsLayer }) {
+  const roadNumbs = [];
+
+  roadsLayer.value.eachLayer((road) => {
+    roadNumbs.push(road.options.road_num);
+  });
+
+  picketsLayer.value.eachLayer((layer) => {
+    if (!roadNumbs.includes(layer.options.road_num)) {
+      layer.getElement().style.display = 'none';
+    } else {
+      layer.getElement().style.display = '';
+    }
+  });
+}
+
 let msgBox = {};
 let sendBox = {};
 const workMode = ref();
@@ -109,6 +125,8 @@ onMounted(async () => {
   roadsLayer.value.addTo(mymap);
   roadPane.style.display = 'none';
   picketsPane.style.display = 'none';
+
+  hideNotDirPickets({ roadsLayer, picketsLayer });
 
   registerMsgBox(msgBox, { map: mymap });
   registerChgModeBtn(workMode, { roadPane, picketsPane, picketsLayer, map: mymap, stdRoads: stdPolylines })
