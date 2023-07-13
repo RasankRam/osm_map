@@ -1,7 +1,11 @@
 import * as L from 'leaflet';
 import { renderLayerModePane } from './renderLayerModePane';
+import {Ref, ShallowRef} from "vue";
+import type { FeatureGroup, Map } from "leaflet";
+import type { LPolyline } from "../types/LPolyline.ts";
 
-function registerChgModeBtn(workMode, { roadPane, picketsPane, picketsLayer, map, stdRoads }) {
+function registerChgModeBtn(workMode: Ref<'view' | 'editing'>, { roadPane, picketsPane, picketsLayer, map, stdRoads }:
+  { roadPane: HTMLElement, picketsPane: HTMLElement, picketsLayer: ShallowRef<FeatureGroup>, map: Map, stdRoads: Ref<LPolyline[]>  }) {
   // @ts-ignore
   const chgBtn = L.control({ position: 'topright' });
 

@@ -1,6 +1,8 @@
 import * as L from 'leaflet';
+import { LControl } from "../types/LControl.ts";
+import type { Map } from 'leaflet';
 
-function registerMsgBox(variable, { map }) {
+function registerMsgBox(variable: LControl, { map }: { map: Map }) {
   // @ts-ignore
   const msgBox = L.control(({ position: 'bottomleft' }));
 

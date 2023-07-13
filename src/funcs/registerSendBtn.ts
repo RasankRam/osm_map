@@ -2,8 +2,11 @@ import * as L from 'leaflet';
 import type { Map } from "leaflet";
 import axios from '../plugins/axios.js';
 import { debounce } from '../helpers/helpers';
+import type { LControl } from "../types/LControl.ts";
+import type { Ref } from "vue";
+import type { LPolyline } from "../types/LPolyline.ts";
 
-function registerSendBtn(bindVar, { map, sendBox, stdPickets }: { map: Map } & Record<string, any>) {
+function registerSendBtn(bindVar: LControl, { map, sendBox, stdPickets }: { map: Map, sendBox: LControl, stdPickets: Ref<LPolyline[]> }) {
   // @ts-ignore
   const sendBtn = L.control({ position: 'bottomright' });
 

@@ -22,31 +22,32 @@ import { contextMenuFn } from './funcs/contextMenuFn';
 import { getPickets } from './funcs/getPickets';
 import { getRoads } from './funcs/getRoads';
 import { getMap } from './funcs/getMap';
-import type { FeatureGroup, LayerGroup } from "leaflet";
-import ExtendedControl from "./types/ExtendedControl.ts";
-import {getLoadedRoads} from "./funcs/getLoadedRoads.ts";
-import {getLoadedPickets} from "./funcs/getLoadedPickets.ts";
-import {getTrackedMousePosition} from "./funcs/getTrackedMousePosition.ts";
-import {hideNotDirPickets} from "./funcs/hideNotDirPickets.ts";
+import type { FeatureGroup, LayerGroup, Map } from "leaflet";
+import type { LControl } from './types/LControl.ts';
+import { getLoadedRoads } from "./funcs/getLoadedRoads.ts";
+import { getLoadedPickets } from "./funcs/getLoadedPickets.ts";
+import { getTrackedMousePosition } from "./funcs/getTrackedMousePosition.ts";
+import { hideNotDirPickets } from "./funcs/hideNotDirPickets.ts";
+import {LPolyline} from "./types/LPolyline.ts";
+import type { ContextMenuType } from "./types/contextMenuType.ts";
 
 function getCtxMenuCoordsFabric() {
   return { top: '0px', left: '0px' };
 }
 
+let stdPolylines = shallowRef<LPolyline[]>([]);
+let stdPickets = shallowRef<LPolyline[]>([]);
 
-let stdPolylines = shallowRef([]);
-let stdPickets = shallowRef([]);
-
-let msgBox: { value?: ExtendedControl } = {};
-let sendBox: { value?: ExtendedControl } = {};
-const workMode = ref();
+let msgBox: LControl = {};
+let sendBox: LControl = {};
+const workMode = ref<'view' | 'editing'>();
 const showContextMenu = ref(false);
 const ctxMenuCoords = reactive(getCtxMenuCoordsFabric());
 
 let roadsLayer = shallowRef<LayerGroup>();
 let picketsLayer = shallowRef<FeatureGroup>();
 
-watch(stdPickets, (v) => {
+watch(stdPickets, () => {
   if (stdPickets.value.length > 0) {
     msgBox.value.setContent(`Выбранных пикетов: ${stdPickets.value.length}`)
     msgBox.value.show();
@@ -57,7 +58,7 @@ watch(stdPickets, (v) => {
   }
 });
 
-watch(stdPolylines, (v) => {
+watch(stdPolylines, () => {
   if (stdPolylines.value.length > 0) {
     msgBox.value.show();
     msgBox.value.setContent(`Выбрано дорог: ${stdPolylines.value.length}`)
@@ -66,7 +67,8 @@ watch(stdPolylines, (v) => {
   }
 })
 
-const contextMenu = computed(contextMenuFn.bind(null, { workMode, stdRoads: stdPolylines, stdPickets, showContextMenu, picketsLayer }));
+const contextMenu = computed<ContextMenuType>
+  (contextMenuFn.bind(null, { workMode, stdRoads: stdPolylines, stdPickets, showContextMenu, picketsLayer }));
 
 let mymap;
 
@@ -76,14 +78,14 @@ onMounted(async () => {
 
   const mousePosition = getTrackedMousePosition();
 
-  const mymap = getMap({
+  const mymap: Map = getMap({
     ctxMenuCoords, mousePosition, stdPickets, stdRoads: stdPolylines, roadsLayer, picketsLayer, msgBox, showContextMenu });
 
   // attribution false
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
 
-  const roadPane = mymap.createPane('roads');
-  const picketsPane = mymap.createPane('pickets');
+  const roadPane: HTMLElement = mymap.createPane('roads');
+  const picketsPane: HTMLElement = mymap.createPane('pickets');
 
   picketsLayer.value = getPickets({ pickets, stdPickets  });
   roadsLayer.value = getRoads({ roads, stdRoads: stdPolylines });
