@@ -2,7 +2,7 @@ import * as L from 'leaflet';
 import {getRandomColorSmart} from '../utils';
 import {selectionPicket} from './selectionPicket';
 
-function getPickets({ pickets, stdPickets }) {
+function getPickets({ pickets, stdPickets }: { pickets, stdPickets }) {
   const polygonGroup = L.featureGroup();
 
   for (const picket of pickets) {
@@ -14,6 +14,7 @@ function getPickets({ pickets, stdPickets }) {
 
     const color = getRandomColorSmart();
 
+    // @ts-ignore (здесь кастомное свойство для удоства взаимодействия с элементом)
     const plgn = L.polyline(coords, { color, weight: 6, pane: 'pickets', road_name: picket.road_name,
       road_num: picket.road_num, picket_id: picket.picket_id, init_color: color });
 

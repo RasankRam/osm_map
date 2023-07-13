@@ -1,7 +1,4 @@
-export * from './getColor';
-
-
-
+export * from './getColor.js';
 
 const sleep = (ms) => {
   return new Promise((resolve) => {

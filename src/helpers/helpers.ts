@@ -1,4 +1,4 @@
-export const debounce = (func, delay) => {
+export const debounce = (func: () => void, delay: number) => {
   let timeoutId;
 
   return function(...args) {

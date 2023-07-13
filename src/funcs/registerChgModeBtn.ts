@@ -2,6 +2,7 @@ import * as L from 'leaflet';
 import { renderLayerModePane } from './renderLayerModePane';
 
 function registerChgModeBtn(workMode, { roadPane, picketsPane, picketsLayer, map, stdRoads }) {
+  // @ts-ignore
   const chgBtn = L.control({ position: 'topright' });
 
   chgBtn.onAdd = function () {
@@ -11,11 +12,11 @@ function registerChgModeBtn(workMode, { roadPane, picketsPane, picketsLayer, map
 
     const button = L.DomUtil.create('span', '', mainContent);
 
-    renderLayerModePane(map, { button, workMode,
+    renderLayerModePane({ button, workMode,
       roadPaneStyle: roadPane.style, picketPaneStyle: picketsPane.style, picketsLayer, stdRoads });
 
     L.DomEvent.on(container, 'click', function(e) {
-      renderLayerModePane(map, { button, workMode,
+      renderLayerModePane({ button, workMode,
         roadPaneStyle: roadPane.style, picketPaneStyle: picketsPane.style, picketsLayer, stdRoads })
 
       e.preventDefault();

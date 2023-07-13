@@ -1,6 +1,7 @@
 import * as L from 'leaflet';
 
 function registerMsgBox(variable, { map }) {
+  // @ts-ignore
   const msgBox = L.control(({ position: 'bottomleft' }));
 
   msgBox.onAdd = function () {

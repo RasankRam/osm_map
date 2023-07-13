@@ -1,4 +1,4 @@
-function reversePolyline({ pln, picketsLayer, roadsLayer }) {
+function reversePolyline({ pln, picketsLayer }) {
   const reversedLatLngs = pln.getLatLngs();
   reversedLatLngs.reverse();
   pln.setLatLngs(reversedLatLngs);

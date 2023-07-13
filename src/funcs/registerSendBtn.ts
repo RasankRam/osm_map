@@ -1,8 +1,10 @@
 import * as L from 'leaflet';
-import axios from '../plugins/axios';
-import {debounce} from '../helpers/helpers';
+import type { Map } from "leaflet";
+import axios from '../plugins/axios.js';
+import { debounce } from '../helpers/helpers';
 
-function registerSendBtn(bindVar, { map, sendBox, stdPickets }) {
+function registerSendBtn(bindVar, { map, sendBox, stdPickets }: { map: Map } & Record<string, any>) {
+  // @ts-ignore
   const sendBtn = L.control({ position: 'bottomright' });
 
   sendBtn.onAdd = function () {
@@ -46,10 +48,8 @@ function registerSendBtn(bindVar, { map, sendBox, stdPickets }) {
         return;
       }
 
-      let res;
-
       try {
-        res = await axios.post('pickets/comment', postData);
+        await axios.post('pickets/comment', postData);
         sendBox.value.hide();
         stdPickets.value = [];
       } catch (err) {

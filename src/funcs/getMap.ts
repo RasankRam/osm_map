@@ -36,7 +36,9 @@ export function getMap({ ctxMenuCoords, mousePosition, stdPickets, stdRoads, roa
   });
 
   map.on('click', (e) => {
-    if (!e.originalEvent.target.closest('.leaflet-roads-pane') && !e.originalEvent.target.closest('.leaflet-pickets-pane')) {
+    const target = e.originalEvent.target as HTMLElement;
+
+    if (!target.closest('.leaflet-roads-pane') && !target.closest('.leaflet-pickets-pane')) {
       if (stdPickets.value.length) {
         stdPickets.value.forEach((pln) => {
           pln.setStyle({ color: pln.options.init_color })

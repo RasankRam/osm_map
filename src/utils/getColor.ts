@@ -1,4 +1,13 @@
-const getRandomColorSmart = () => {
+interface RandomColorFunction {
+  (): string;
+}
+
+interface RandomColorFunctionExtended extends RandomColorFunction {
+  usedColors: string[];
+  firstThreeElems: string[];
+}
+
+const getRandomColorSmart: RandomColorFunctionExtended = (() => {
   const colors = ['#C25865', '#4f9787', '#42AA85', '#FFC875', '#B467A3', '#3AB2F6', 'orange'];
 
   // Создаем массив для хранения уже использованных цветов
@@ -33,6 +42,6 @@ const getRandomColorSmart = () => {
   getRandomColorSmart.usedColors.push(randomColor);
 
   return randomColor;
-}
+}) as RandomColorFunctionExtended
 
 export { getRandomColorSmart }

@@ -11,52 +11,40 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, onUnmounted, computed, reactive, watch, shallowRef, ref } from 'vue';
 import * as L from 'leaflet';
-import axios from './plugins/axios';
 import "leaflet-arrowheads";
-import roads_json from './roads.json';
-import pickets_json from './pickets.json';
-import {registerSendBtn} from './funcs/registerSendBtn';
-import {registerChgModeBtn} from './funcs/registerChgModeBtn';
-import {registerMsgBox} from './funcs/registerMsgBox';
-import {contextMenuFn} from './funcs/contextMenuFn';
+import { registerSendBtn } from './funcs/registerSendBtn';
+import { registerChgModeBtn } from './funcs/registerChgModeBtn';
+import { registerMsgBox } from './funcs/registerMsgBox';
+import { contextMenuFn } from './funcs/contextMenuFn';
 import { getPickets } from './funcs/getPickets';
 import { getRoads } from './funcs/getRoads';
-import {getMap} from './funcs/getMap';
-
-let stdPolylines = shallowRef([]);
-let stdPickets = shallowRef([]);
+import { getMap } from './funcs/getMap';
+import type { FeatureGroup, LayerGroup } from "leaflet";
+import ExtendedControl from "./types/ExtendedControl.ts";
+import {getLoadedRoads} from "./funcs/getLoadedRoads.ts";
+import {getLoadedPickets} from "./funcs/getLoadedPickets.ts";
+import {getTrackedMousePosition} from "./funcs/getTrackedMousePosition.ts";
+import {hideNotDirPickets} from "./funcs/hideNotDirPickets.ts";
 
 function getCtxMenuCoordsFabric() {
   return { top: '0px', left: '0px' };
 }
 
-function hideNotDirPickets({ roadsLayer, picketsLayer }) {
-  const roadNumbs = [];
 
-  roadsLayer.value.eachLayer((road) => {
-    roadNumbs.push(road.options.road_num);
-  });
+let stdPolylines = shallowRef([]);
+let stdPickets = shallowRef([]);
 
-  picketsLayer.value.eachLayer((layer) => {
-    if (!roadNumbs.includes(layer.options.road_num)) {
-      layer.getElement().style.display = 'none';
-    } else {
-      layer.getElement().style.display = '';
-    }
-  });
-}
-
-let msgBox = {};
-let sendBox = {};
+let msgBox: { value?: ExtendedControl } = {};
+let sendBox: { value?: ExtendedControl } = {};
 const workMode = ref();
 const showContextMenu = ref(false);
 const ctxMenuCoords = reactive(getCtxMenuCoordsFabric());
 
-let roadsLayer = shallowRef([]);
-let picketsLayer = shallowRef([]);
+let roadsLayer = shallowRef<LayerGroup>();
+let picketsLayer = shallowRef<FeatureGroup>();
 
 watch(stdPickets, (v) => {
   if (stdPickets.value.length > 0) {
@@ -83,42 +71,21 @@ const contextMenu = computed(contextMenuFn.bind(null, { workMode, stdRoads: stdP
 let mymap;
 
 onMounted(async () => {
-  let roads;
-  let pickets;
+  let roads = await getLoadedRoads();
+  let pickets = await getLoadedPickets();
 
-  try {
-    ({ data: roads } = await axios.get('https://geo.oeswork.io/api/roads'));
-  } catch (err) {
-    console.log('err download roads');
-    roads = roads_json;
-  }
-
-  try {
-    ({ data: pickets } = await axios.get('https://geo.oeswork.io/api/pickets'));
-  } catch (err) {
-    pickets = pickets_json;
-  }
-
-
-
-  const mousePosition = { x:0, y:0 };
-
-  document.addEventListener('mousemove', function (mouseMoveEvent) {
-    mousePosition.x = mouseMoveEvent.pageX;
-    mousePosition.y = mouseMoveEvent.pageY;
-  }, false);
+  const mousePosition = getTrackedMousePosition();
 
   const mymap = getMap({
     ctxMenuCoords, mousePosition, stdPickets, stdRoads: stdPolylines, roadsLayer, picketsLayer, msgBox, showContextMenu });
 
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: false
-  }).addTo(mymap);
+  // attribution false
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(mymap);
 
   const roadPane = mymap.createPane('roads');
   const picketsPane = mymap.createPane('pickets');
 
-  picketsLayer.value = getPickets({ pickets, stdPickets, roads  });
+  picketsLayer.value = getPickets({ pickets, stdPickets  });
   roadsLayer.value = getRoads({ roads, stdRoads: stdPolylines });
 
   picketsLayer.value.addTo(mymap);

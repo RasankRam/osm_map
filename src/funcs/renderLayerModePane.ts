@@ -1,6 +1,6 @@
-import { checkIntersected } from './checkIntersected';
+import { checkIntersected } from './checkIntersected.js';
 
-function renderLayerModePane(map, { button, roadPaneStyle, workMode, picketPaneStyle, picketsLayer, stdRoads }) {
+function renderLayerModePane({ button, roadPaneStyle, workMode, picketPaneStyle, picketsLayer, stdRoads }) {
   if (!roadPaneStyle.display) {
     checkIntersected({ picketsLayer, stdRoads });
     button.innerHTML = 'Режим редактирования';
